@@ -1,0 +1,62 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = 'httpd:latest'
+        MYSQL_IMAGE = 'mysql:latest'
+        HTML_FILE = 'index.html'
+        CSS_FILE = 'styles.css'
+        DB_NAME = 'mydatabase'
+        DB_USER = 'root'
+        DB_PASSWORD = 'password123' // You can change this password
+    }
+
+    stages {
+        stage('Build HTML/CSS') {
+            steps {
+                git 'https://github.com/yourusername/your-repo.git'
+            }
+        }
+
+        stage('Build HTTPD Docker Image') {
+            steps {
+                script {
+                    docker.build(DOCKER_IMAGE, '-f Dockerfile-httpd .')
+                }
+            }
+        }
+
+        stage('Build MySQL Docker Image') {
+            steps {
+                script {
+                    docker.build(MYSQL_IMAGE, '-f Dockerfile-mysql .')
+                }
+            }
+        }
+
+        stage('Run MySQL Container') {
+            steps {
+                script {
+                    docker.image(MYSQL_IMAGE).withRun('-e MYSQL_ROOT_PASSWORD=${DB_PASSWORD} -e MYSQL_DATABASE=${DB_NAME} --name mysql-container -d')
+                }
+            }
+        }
+
+        stage('Run HTTPD Container') {
+            steps {
+                script {
+                    docker.image(DOCKER_IMAGE).withRun('-v ${WORKSPACE}:/usr/local/apache2/htdocs/ --name httpd-container --link mysql-container:mysql -p 8080:80 -d')
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build and deployment successful!'
+        }
+        failure {
+            echo 'Build or deployment failed!'
+        }
+    }
+}
